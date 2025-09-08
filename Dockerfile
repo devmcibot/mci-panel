@@ -1,35 +1,32 @@
-# ====== STAGE 1: deps ======
-FROM node:18-bullseye AS deps
+# ---------- STAGE: deps ----------
+FROM node:18-alpine AS deps
 WORKDIR /app
-
-# copia só manifestos p/ cache eficiente
+# só manifestos primeiro (cache de deps)
 COPY package*.json ./
+# cache de npm para builds repetidos
+RUN --mount=type=cache,target=/root/.npm npm ci
 
-# configurações p/ instalações limpas e previsíveis
-RUN npm i -g npm@10 && npm -v && \
-    npm config set fund false && \
-    npm config set audit false && \
-    # se houver lockfile usa ci; senão usa install (fallback)
-    bash -lc 'if [ -f package-lock.json ]; then \
-      npm ci --legacy-peer-deps; \
-    else \
-      npm install --legacy-peer-deps; \
-    fi'
-
-# ====== STAGE 2: build ======
-FROM node:18-bullseye AS builder
+# ---------- STAGE: build ----------
+FROM node:18-alpine AS build
 WORKDIR /app
+# reutiliza node_modules do stage de deps
 COPY --from=deps /app/node_modules ./node_modules
+# agora o resto do código
 COPY . .
-# build do Next (usa devDeps já instaladas no stage deps)
+# compila o Next
 RUN npm run build
 
-# ====== STAGE 3: runtime ======
-FROM node:18-bullseye AS runner
+# ---------- STAGE: runtime ----------
+FROM node:18-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# copia artefatos necessários p/ rodar em prod
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+COPY --from=build /app/package.json ./package.json
+COPY --from=deps  /app/node_modules ./node_modules
+
+# portas/entrada
 ENV PORT=3000
-# (DATA_PATH vai pelo Easypanel Ambiente)
-COPY --from=builder /app ./
 EXPOSE 3000
-CMD ["npm","start"]
+CMD ["npm", "start"]
