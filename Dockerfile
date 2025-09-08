@@ -1,5 +1,5 @@
 # --------- BUILD ---------
-FROM node:20-bullseye AS builder
+FROM node:18-bullseye AS builder
 
 # deps de build (se precisar no futuro para binários)
 RUN apt-get update && apt-get install -y --no-install-recommends \
