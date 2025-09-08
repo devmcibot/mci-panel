@@ -1,32 +1,31 @@
-# ---------- STAGE: deps ----------
-FROM node:18-alpine AS deps
-WORKDIR /app
-# só manifestos primeiro (cache de deps)
-COPY package*.json ./
-# cache de npm para builds repetidos
-RUN --mount=type=cache,target=/root/.npm npm ci
-
 # ---------- STAGE: build ----------
-FROM node:18-alpine AS build
+FROM node:18-bullseye AS build
 WORKDIR /app
-# reutiliza node_modules do stage de deps
-COPY --from=deps /app/node_modules ./node_modules
-# agora o resto do código
+
+# copia só manifestos para aproveitar cache
+COPY package*.json ./
+
+# instala deps (tolerante a peer deps)
+RUN npm install --legacy-peer-deps --no-audit --no-fund
+
+# agora copia o código e faz o build
 COPY . .
-# compila o Next
 RUN npm run build
 
 # ---------- STAGE: runtime ----------
-FROM node:18-alpine AS runner
+FROM node:18-bullseye
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
 WORKDIR /app
-ENV NODE_ENV=production
-# copia artefatos necessários p/ rodar em prod
+
+# traz apenas o necessário para rodar
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
-COPY --from=build /app/package.json ./package.json
-COPY --from=deps  /app/node_modules ./node_modules
+# (se seu Next usa pasta app/, inclua)
+COPY --from=build /app/app ./app
 
-# portas/entrada
-ENV PORT=3000
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["npm","start"]
