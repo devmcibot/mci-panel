@@ -19,7 +19,7 @@ COPY . .
 RUN npm run build
 
 # --------- RUNTIME ---------
-FROM node:20-bullseye
+FROM node:18-bullseye
 
 WORKDIR /app
 COPY --from=builder /app ./
