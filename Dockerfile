@@ -1,5 +1,5 @@
 # ---------- STAGE: build ----------
-FROM node:18-bullseye AS build
+FROM node:16-bullseye AS build
 WORKDIR /app
 
 # copia só manifestos para aproveitar cache
@@ -13,7 +13,7 @@ COPY . .
 RUN npm run build
 
 # ---------- STAGE: runtime ----------
-FROM node:18-bullseye
+FROM node:16-bullseye
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000
