@@ -1,8 +1,6 @@
 node_modules
-npm-debug.log
-.DS_Store
+.next
 .git
 .gitignore
-.env
-dist
-.whisper
+Dockerfile
+README.md
