@@ -1,31 +1,22 @@
-# ---------- STAGE: build ----------
-FROM node:16-bullseye AS build
+# Imagem base
+FROM node:18-bullseye
+
+# Pasta de trabalho
 WORKDIR /app
 
-# copia só manifestos para aproveitar cache
+# Copia somente manifestos para cache eficiente
 COPY package*.json ./
 
-# instala deps (tolerante a peer deps)
-RUN npm install --force --no-audit --no-fund
+# Instala apenas dependências necessárias para produção
+# (se você precisar de devDeps, troque para "npm ci")
+RUN npm ci --omit=dev
 
-# agora copia o código e faz o build
+# Copia o restante do código
 COPY . .
-RUN npm run build
 
-# ---------- STAGE: runtime ----------
-FROM node:16-bullseye
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000
-WORKDIR /app
-
-# traz apenas o necessário para rodar
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
-# (se seu Next usa pasta app/, inclua)
-COPY --from=build /app/app ./app
-
+# Porta da aplicação
+ENV PORT=3000
 EXPOSE 3000
-CMD ["npm","start"]
+
+# Sobe o server (ajuste se o "start" do seu package.json for outro)
+CMD ["npm", "start"]
