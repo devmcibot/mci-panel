@@ -1,31 +1,35 @@
-# --------- BUILD ---------
-FROM node:18-bullseye AS builder
-
-# deps de build (se precisar no futuro para binários)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git build-essential cmake wget ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
-
+# ====== STAGE 1: deps ======
+FROM node:18-bullseye AS deps
 WORKDIR /app
 
-# instala dependências primeiro (cache eficiente)
+# copia só manifestos p/ cache eficiente
 COPY package*.json ./
-# flags p/ evitar travas de peer deps e logs mais claros
-RUN node -v && npm -v && \
-    npm install --legacy-peer-deps --no-audit --no-fund --loglevel=info
 
-# copia o restante do código e faz o build
+# configurações p/ instalações limpas e previsíveis
+RUN npm i -g npm@10 && npm -v && \
+    npm config set fund false && \
+    npm config set audit false && \
+    # se houver lockfile usa ci; senão usa install (fallback)
+    bash -lc 'if [ -f package-lock.json ]; then \
+      npm ci --legacy-peer-deps; \
+    else \
+      npm install --legacy-peer-deps; \
+    fi'
+
+# ====== STAGE 2: build ======
+FROM node:18-bullseye AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# build do Next (usa devDeps já instaladas no stage deps)
 RUN npm run build
 
-# --------- RUNTIME ---------
-FROM node:18-bullseye
-
+# ====== STAGE 3: runtime ======
+FROM node:18-bullseye AS runner
 WORKDIR /app
-COPY --from=builder /app ./
-
-# Variáveis NÃO sensíveis aqui; segredos vão no painel!
+ENV NODE_ENV=production
 ENV PORT=3000
-# DATA_PATH vai ser setado no Easypanel (Ambiente)
+# (DATA_PATH vai pelo Easypanel Ambiente)
+COPY --from=builder /app ./
 EXPOSE 3000
 CMD ["npm","start"]
