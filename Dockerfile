@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # instala deps (tolerante a peer deps)
-RUN npm install --legacy-peer-deps --no-audit --no-fund
+RUN npm install --force --no-audit --no-fund
 
 # agora copia o código e faz o build
 COPY . .
