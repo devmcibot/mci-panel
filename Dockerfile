@@ -1,22 +1,34 @@
-# Imagem base
-FROM node:18-bullseye
-
-# Pasta de trabalho
+# -------- STAGE: build --------
+FROM node:18-bullseye AS build
 WORKDIR /app
 
-# Copia somente manifestos para cache eficiente
+# Copia somente manifestos (cache eficiente)
 COPY package*.json ./
 
-# Instala apenas dependências necessárias para produção
-# (se você precisar de devDeps, troque para "npm ci")
-RUN npm ci --omit=dev
+# Tenta ci (com lockfile); se não houver lock, cai para install
+# (isso evita quebrar quando o lock não está presente ou está incompatível)
+RUN npm --version && node --version && \
+    (npm ci --omit=dev || npm install --omit=dev)
 
-# Copia o restante do código
+# Agora copia o código e faz o build
 COPY . .
+ENV NODE_ENV=production
+RUN npm run build
 
-# Porta da aplicação
+# -------- STAGE: runtime --------
+FROM node:18-bullseye
+WORKDIR /app
+
+# Copia artefatos necessários para rodar
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+# (se você tiver next.config.js/ts, copie também)
+# COPY --from=build /app/next.config.js ./next.config.js
+
+ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
-# Sobe o server (ajuste se o "start" do seu package.json for outro)
-CMD ["npm", "start"]
+CMD ["npm","start"]
