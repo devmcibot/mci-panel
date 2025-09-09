@@ -1,34 +1,27 @@
-# -------- STAGE: build --------
+# ---------- stage: deps ----------
+FROM node:18-bullseye AS deps
+WORKDIR /app
+COPY package*.json ./
+# instala todas as deps necessárias para build e runtime
+RUN npm ci --no-audit --no-fund
+
+# ---------- stage: build ----------
 FROM node:18-bullseye AS build
 WORKDIR /app
-
-# Copia somente manifestos (cache eficiente)
-COPY package*.json ./
-
-# Tenta ci (com lockfile); se não houver lock, cai para install
-# (isso evita quebrar quando o lock não está presente ou está incompatível)
-RUN npm --version && node --version && \
-    (npm ci --omit=dev || npm install --omit=dev)
-
-# Agora copia o código e faz o build
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# -------- STAGE: runtime --------
-FROM node:18-bullseye
+# ---------- stage: runtime ----------
+FROM node:18-bullseye AS runner
 WORKDIR /app
-
-# Copia artefatos necessários para rodar
+ENV NODE_ENV=production
+ENV PORT=3000
+# só o necessário pro runtime (sem fontes)
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
-# (se você tiver next.config.js/ts, copie também)
-# COPY --from=build /app/next.config.js ./next.config.js
-
-ENV NODE_ENV=production
-ENV PORT=3000
 EXPOSE 3000
-
 CMD ["npm","start"]
