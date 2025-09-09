@@ -1,27 +1,24 @@
-# ---------- stage: deps ----------
-FROM node:18-bullseye AS deps
-WORKDIR /app
-COPY package*.json ./
-# instala todas as deps necessárias para build e runtime
-RUN npm ci --no-audit --no-fund
-
-# ---------- stage: build ----------
+# ---------- STAGE: build ----------
 FROM node:18-bullseye AS build
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+
+# se você tem package-lock.json, prefira npm ci
+COPY package*.json ./
+RUN npm ci --omit=dev --no-audit --no-fund || npm install --omit=dev --no-audit --no-fund
+
+# copia restante e builda
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 RUN npm run build
 
-# ---------- stage: runtime ----------
-FROM node:18-bullseye AS runner
+# ---------- STAGE: runtime ----------
+FROM node:18-bullseye
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
-# só o necessário pro runtime (sem fontes)
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
+
+# em vez de copiar item a item, traz tudo do build
+COPY --from=build /app ./
+
 EXPOSE 3000
 CMD ["npm","start"]
